@@ -17,19 +17,53 @@ export const createApplication = async (userId, data) => {
 
 
 
-export const getApplications = async (userId) => {
-    const result = await pool.query(
-        `
+export const getApplications = async (userId, query) => {
+    const {status, company, search, page, limit, sort} = query;
+    let sql = 
+    `
         SELECT *
         FROM applications
         WHERE user_id = $1
-        ORDER BY created_at DESC
-        `,
-        [userId]
-    );
+    `;
+    const values = [userId];
+    let index = 2;
+
+    if (status) {
+        sql += ` AND status = $${index}`;
+        values.push(status);
+        index++;
+    }
+
+    if (company) {
+        sql += ` AND company ILIKE $${index}`;
+        values.push(`%${company}%`);
+        index++;
+    }
+
+    if (search) {
+        sql += `
+        AND (
+            company ILIKE $${index}
+            OR role ILIKE $${index}
+        )
+        `;
+        values.push(`%${search}%`);
+        index++;
+    }
+
+    sql += ` ORDER BY ${sort} DESC`;
+
+    sql += ` LIMIT $${index}`;
+    values.push(limit);
+    index++;
+
+    sql += ` OFFSET $${index}`;
+    values.push((page - 1) * limit);
+
+    const result = await pool.query(sql, values);
+
     return result.rows;
 };
-
 
 
 export const getApplicationById = async (userId, applicationId) => {

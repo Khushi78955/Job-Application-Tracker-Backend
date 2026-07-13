@@ -27,7 +27,7 @@ export const up = (pgm) => {
     status: {
       type: "varchar(50)",
       notNull: true,
-      default: "applied",
+      default: "Applied",
     },
 
     applied_date: {
