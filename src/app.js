@@ -1,8 +1,9 @@
 import express from "express";
-import cors from "cors";
 import helmet from "helmet";
-import morgan from "morgan";
+import cors from "cors";
 import cookieParser from "cookie-parser";
+import morgan from "morgan";
+
 
 import routes from "./routes/index.js";
 import errorHandler from "./middleware/error.middleware.js";
