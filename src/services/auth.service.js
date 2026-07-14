@@ -4,7 +4,7 @@ import hashPassword from "../utils/hashPassword.js"
 import comparePassword from "../utils/comparePassword.js"
 import sendEmail from "../utils/sendEmail.js";
 import generateVerificationToken from "../utils/generateVerificationToken.js";
-
+import generateResetToken from "../utils/generateResetToken.js";
 import {generateAccessToken, generateRefreshToken, verifyRefreshToken} from "../utils/jwt.js"
 
 export const registerUser = async ({name, email, password}) => {
@@ -43,7 +43,7 @@ export const registerUser = async ({name, email, password}) => {
         `,
         [refreshToken, user.id]
     )
-    
+
     await sendVerificationEmail(user.id);
 
     return {
@@ -240,4 +240,87 @@ export const verifyEmail = async (token) => {
     return {
         message: "Email verified successfully",
     }
+}
+
+
+export const forgotPassword = async ({email}) => {
+    const result = await pool.query(
+        `
+        SELECT id
+        FROM users
+        WHERE email = $1
+        `,
+        [email]
+    )
+    if(result.rows.length === 0){
+        throw new AppError("User not found", 404);
+    }
+
+    const userId = result.rows[0].id;
+    const token = generateResetToken();
+    const expiresAt = new Date(Date.now() + 1000 * 60 * 60);
+
+    await pool.query(
+        `
+        UPDATE users
+        SET
+        password_reset_token = $1,
+        password_reset_expires_at = $2
+        WHERE id = $3
+        `,
+        [token, expiresAt, userId]
+
+    )
+
+    const resetLink = `http://localhost:${process.env.PORT}/api/v1/auth/reset-password?token=${token}`;
+    await sendEmail({
+        to: email,
+        subject: "Reset your password",
+        html: `
+        <h2>Reset Password</h2>
+        <p>Click below to reset your password.</p>
+        <a href="${resetLink}">
+            Reset Password
+        </a>
+        `,
+    });
+    return {
+        message: "Password reset email sent successfully",
+    }
+}
+
+
+
+export const resetPassword = async ({token, password}) => {
+    const result = await pool.query(
+        `
+        SELECT id
+        FROM users
+        WHERE password_reset_token = $1
+        AND password_reset_expires_at > CURRENT_TIMESTAMP
+        `,
+        [token]
+    )
+    if(result.rows.length === 0){
+        throw new AppError("Invalid or expired reset token", 400);
+    }
+
+    const userId = result.rows[0].id;
+    const passwordHash = await hashPassword(password);
+    await pool.query(
+        `
+        UPDATE users
+        SET
+        password_hash = $1,
+        password_reset_token = NULL,
+        password_reset_expires_at = NULL
+        WHERE id = $2
+        `,
+        [passwordHash, userId]
+    );
+    return {
+        message: "Password reset successfully",
+    }
+
+
 }
