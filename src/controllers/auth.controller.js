@@ -1,4 +1,4 @@
-import {registerUser, loginUser, refreshUserToken, logoutUser, sendVerificationEmail, verifyEmail, forgotPassword, resetPassword} from "../services/auth.service.js";
+import {registerUser, loginUser, refreshUserToken, logoutUser, sendVerificationEmail, verifyEmail, forgotPassword, resetPassword, enableTwoFactor, verifyTwoFactor, disableTwoFactor} from "../services/auth.service.js";
 
 export const register = async (req, res, next) => {
     try{
@@ -109,3 +109,45 @@ export const reset = async (req, res, next) => {
 }
 
 
+
+
+export const enable2FA = async (req, res, next) => {
+    try{
+        const result = await enableTwoFactor(req.user.userId);
+        res.status(200).json({
+            success: true,
+            message: "Scan the QR code using your Authenticator app",
+            data: result
+        })
+    } catch(err){
+        next(err)
+    }
+}
+
+
+export const verify2FA = async (req, res, next) => {
+    try{
+        const result = await verifyTwoFactor(req.body);
+        res.status(200).json({
+            success: true,
+            message: "2FA verification successful",
+            data: result,
+        });
+    } catch(err){
+        next(err)
+    }
+}
+
+
+
+export const disable2FA = async (req, res, next) => {
+    try {
+        const result = await disableTwoFactor(req.user.userId);
+        res.status(200).json({
+            success: true,
+            message: result.message,
+        });
+    } catch (err) {
+        next(err);
+    }
+};

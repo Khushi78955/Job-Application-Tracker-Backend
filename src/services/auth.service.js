@@ -6,6 +6,8 @@ import sendEmail from "../utils/sendEmail.js";
 import generateVerificationToken from "../utils/generateVerificationToken.js";
 import generateResetToken from "../utils/generateResetToken.js";
 import {generateAccessToken, generateRefreshToken, verifyRefreshToken} from "../utils/jwt.js"
+import speakeasy from "speakeasy";
+import QRCode from "qrcode";
 
 export const registerUser = async ({name, email, password}) => {
 
@@ -86,6 +88,12 @@ export const loginUser = async ({email, password}) => {
             "Please verify your email before logging in",
             403
         );
+    }
+    if (user.two_factor_enabled) {
+        return {
+            requiresTwoFactor: true,
+            userId: user.id,
+        };
     }
 
     const accessToken = generateAccessToken(user.id);
@@ -420,3 +428,121 @@ export const googleLogin = async (profile) => {
     };
 
 }
+
+
+export const enableTwoFactor = async (userId) => {
+    const secret = speakeasy.generateSecret({
+        name: "Job Application Tracker"
+    })
+    await pool.query(
+        `
+        UPDATE users
+        SET two_factor_secret = $1
+        WHERE id = $2
+        `,
+        [secret.base32, userId]
+    );
+
+    const qrCode = await QRCode.toDataURL(secret.otpauth_url);
+    return {
+        secret: secret.base32,
+        qrCode
+
+    }
+}
+
+
+
+export const verifyTwoFactor = async ({userId, token}) => {
+    const result = await pool.query(
+        `
+        SELECT two_factor_secret
+        FROM users
+        WHERE id = $1
+        `,
+        [userId]
+    );
+
+    if(result.rows.length === 0){
+        throw new AppError("User not found", 404);
+    }
+    const secret = result.rows[0].two_factor_secret;
+    const verified = speakeasy.totp.verify({
+        secret,
+        encoding: "base32",
+        token
+    })
+
+    if(!verified){
+        throw new AppError("Invalid verification code", 400);
+    }
+    await pool.query(
+        `
+        UPDATE users
+        SET
+            two_factor_enabled = TRUE
+        WHERE id = $1
+        `,
+        [userId]
+    );
+
+    const userResult = await pool.query(
+        `
+        SELECT *
+        FROM users
+        WHERE id = $1
+        `,
+        [userId]
+    );
+
+    const user = userResult.rows[0];
+
+    const accessToken = generateAccessToken(user.id);
+    const refreshToken = generateRefreshToken(user.id);
+
+    await pool.query(
+        `
+        UPDATE users
+        SET refresh_token = $1
+        WHERE id = $2
+        `,
+        [refreshToken, user.id]
+    );
+
+    return {
+        user: {
+            id: user.id,
+            name: user.name,
+            email: user.email,
+            isVerified: user.is_verified,
+            twoFactorEnabled: user.two_factor_enabled,
+        },
+        tokens: {
+            accessToken,
+            refreshToken,
+        },
+    };
+}
+
+
+export const disableTwoFactor = async (userId) => {
+    const result = await pool.query(
+        `
+        UPDATE users
+        SET
+            two_factor_enabled = FALSE,
+            two_factor_secret = NULL
+        WHERE id = $1
+        RETURNING id
+        `,
+        [userId]
+    );
+
+    if (result.rows.length === 0) {
+        throw new AppError("User not found", 404);
+    }
+
+    return {
+        message: "Two-factor authentication disabled successfully",
+    };
+};

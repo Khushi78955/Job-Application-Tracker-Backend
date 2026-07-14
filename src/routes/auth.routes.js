@@ -3,8 +3,8 @@ import validate from "../middleware/validate.js";
 import protect from "../middleware/auth.middleware.js";
 import passport from "../config/passport.js";
 
-import { register, login, refreshToken, logout, sendVerification, verify, forgot, reset } from "../controllers/auth.controller.js";
-import { registerSchema, loginSchema, refreshTokenSchema, forgotPasswordSchema, resetPasswordSchema } from "../validators/auth.validator.js";
+import { register, login, refreshToken, logout, sendVerification, verify, forgot, reset, enable2FA, verify2FA, disable2FA } from "../controllers/auth.controller.js";
+import { registerSchema, loginSchema, refreshTokenSchema, forgotPasswordSchema, resetPasswordSchema, verifyTwoFactorSchema } from "../validators/auth.validator.js";
 
 const router = express.Router();
 
@@ -33,5 +33,10 @@ router.get("/google/callback", passport.authenticate("google", {
         });
     }
 );
+
+router.post("/enable-2fa", protect, enable2FA);
+router.post("/verify-2fa", validate(verifyTwoFactorSchema), verify2FA)
+router.post("/disable-2fa", protect, disable2FA)
+
 
 export default router;

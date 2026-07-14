@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+
 export const registerSchema = z
   .object({
     name: z
@@ -32,6 +33,8 @@ export const registerSchema = z
     path: ["confirmPassword"],
   });
 
+
+
 export const loginSchema = z.object({
   email: z
     .string()
@@ -43,6 +46,8 @@ export const loginSchema = z.object({
     .min(1, "Password is required"),
 });
 
+
+
 export const refreshTokenSchema = z.object({
   refreshToken: z
     .string()
@@ -50,9 +55,13 @@ export const refreshTokenSchema = z.object({
 });
 
 
+
 export const forgotPasswordSchema = z.object({
   email: z.string().email("Invalid email"),
 });
+
+
+
 
 export const resetPasswordSchema = z.object({
   token: z.string().min(1, "Token is required"),
@@ -69,3 +78,13 @@ export const resetPasswordSchema = z.object({
     path: ["confirmPassword"],
   }
 );
+
+
+
+export const verifyTwoFactorSchema = z.object({
+    userId: z.coerce.number(),
+    
+    token: z
+        .string()
+        .length(6, "Token must be 6 digits"),
+});
