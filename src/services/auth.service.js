@@ -2,6 +2,8 @@ import pool from "../config/db.js"
 import AppError from "../errors/AppError.js"
 import hashPassword from "../utils/hashPassword.js"
 import comparePassword from "../utils/comparePassword.js"
+import sendEmail from "../utils/sendEmail.js";
+import generateVerificationToken from "../utils/generateVerificationToken.js";
 
 import {generateAccessToken, generateRefreshToken, verifyRefreshToken} from "../utils/jwt.js"
 
@@ -15,6 +17,7 @@ export const registerUser = async ({name, email, password}) => {
         `,
         [email]
     )
+
     if(existingUser.rows.length > 0){
         throw new AppError("User already exists", 409);
     }
@@ -40,6 +43,8 @@ export const registerUser = async ({name, email, password}) => {
         `,
         [refreshToken, user.id]
     )
+    
+    await sendVerificationEmail(user.id);
 
     return {
         user,
@@ -162,4 +167,77 @@ export const logoutUser = async (userId) => {
   return {
     message: "Logged out successfully",
   }
+}
+
+
+
+export const sendVerificationEmail = async (userId) => {
+    const token = generateVerificationToken();
+    const expiresAt = new Date(Date.now() + 1000 * 60 * 60);
+    const result = await pool.query(
+        `
+        UPDATE users
+        SET
+            email_verification_token = $1,
+            email_verification_expires_at = $2
+        WHERE id = $3
+        RETURNING email
+        `,
+        [token, expiresAt, userId]
+    )
+
+    if(result.rows.length === 0){
+        throw new AppError("User not found", 404)
+    }
+
+    const email = result.rows[0].email;
+    const verificationLink = `http://localhost:2000/api/v1/auth/verify-email?token=${token}`;
+    await sendEmail({
+        to: email,
+        subject: "Verify your email",
+        html: `
+        <h2>Verify your Email</h2>
+        <p>Click the link below:</p>
+        <a href="${verificationLink}">
+            Verify Email
+        </a>
+        `,
+    });
+
+    return {
+        message: "Verification email sent successfully"
+    }
+}
+
+
+
+export const verifyEmail = async (token) => {
+    const result = await pool.query(
+        `
+        SELECT id
+        FROM users
+        WHERE email_verification_token = $1
+        AND email_verification_expires_at > CURRENT_TIMESTAMP
+        `,
+        [token]
+    )
+    if(result.rows.length === 0){
+        throw new AppError("Invalid or expired verification token", 400);
+    }
+
+    const userId = result.rows[0].id;
+    await pool.query(
+        `
+        UPDATE users
+        SET
+        is_verified = TRUE,
+        email_verification_token = NULL,
+        email_verification_expires_at = NULL
+        WHERE id = $1
+        `,
+        [userId]
+    )
+    return {
+        message: "Email verified successfully",
+    }
 }

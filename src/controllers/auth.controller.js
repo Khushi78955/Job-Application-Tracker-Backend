@@ -1,4 +1,4 @@
-import {registerUser, loginUser, refreshUserToken, logoutUser,} from "../services/auth.service.js";
+import {registerUser, loginUser, refreshUserToken, logoutUser, sendVerificationEmail, verifyEmail} from "../services/auth.service.js";
 
 export const register = async (req, res, next) => {
     try{
@@ -8,8 +8,8 @@ export const register = async (req, res, next) => {
             message: "User registered successfully",
             data: result,
         });
-    } catch (error) {
-        next(error);
+    } catch (err) {
+        next(err);
     }
 }
 
@@ -22,8 +22,8 @@ export const login = async (req, res, next) => {
             message: "Login successful",
             data: result,
         });
-    } catch (error) {
-        next(error);
+    } catch (err) {
+        next(err);
     }
 }
 
@@ -37,8 +37,8 @@ export const refreshToken = async (req, res, next) => {
             message: "Token refreshed successfully",
             data: result,
         });
-    } catch (error) {
-        next(error);
+    } catch (err) {
+        next(err);
     }
 }
 
@@ -51,7 +51,34 @@ export const logout = async (req, res, next) => {
             success: true,
             message: result.message,
         });
-    } catch (error) {
-        next(error);
+    } catch (err) {
+        next(err);
+    }
+}
+
+
+export const sendVerification = async (req, res, next) => {
+    try{
+        const result = await sendVerificationEmail(req.user.userId);
+        res.status(200).json({
+            success: true,
+            message: result.message
+        })
+    } catch(err){
+        next(err)
+    }
+
+}
+
+export const verify = async (req, res, next) => {
+    try{
+        const {token} = req.query;
+        const result = await verifyEmail(token);
+        res.status(200).json({
+            success: true,
+            message: result.message
+        })
+    } catch(err){
+        next(err)
     }
 }
