@@ -81,6 +81,12 @@ export const loginUser = async ({email, password}) => {
     if(!isPasswordCorrect){
         throw new AppError("Invalid email or password", 401)
     }
+    if (!user.is_verified) {
+        throw new AppError(
+            "Please verify your email before logging in",
+            403
+        );
+    }
 
     const accessToken = generateAccessToken(user.id);
     const refreshToken = generateRefreshToken(user.id);
@@ -116,7 +122,13 @@ export const refreshUserToken = async (refreshToken) => {
         throw new AppError("Refresh token is required", 401);
     }
 
-    const decoded = verifyRefreshToken(refreshToken);
+    let decoded;
+    try {
+        decoded = verifyRefreshToken(refreshToken);
+    } catch (err) {
+        throw new AppError("Invalid or expired refresh token", 401);
+    }
+    
     const result = await pool.query(
         `
         SELECT *
@@ -322,5 +334,89 @@ export const resetPassword = async ({token, password}) => {
         message: "Password reset successfully",
     }
 
+
+}
+
+
+
+export const googleLogin = async (profile) => {
+    const googleId = profile.id;
+    
+    if (!profile.emails || profile.emails.length === 0) {
+        throw new AppError("Google account has no email", 400);
+    }
+
+    const email = profile.emails[0].value;
+    const name = profile.displayName;
+    const result = await pool.query(
+        `
+        SELECT *
+        FROM users
+        WHERE email = $1
+        `,
+        [email]
+    )
+    let user;
+    if (result.rows.length > 0) {
+        user = result.rows[0];
+
+        if (!user.google_id) {
+            const updatedUser = await pool.query(
+                `
+                UPDATE users
+                SET 
+                    google_id = $1,
+                    is_verified = TRUE
+                WHERE id = $2
+                RETURNING *
+                `,
+                [googleId, user.id]
+            );
+
+            user = updatedUser.rows[0];
+        }
+    }
+    else{
+        const newUser = await pool.query(
+            `
+            INSERT INTO users
+            (
+                name,
+                email,
+                google_id,
+                is_verified
+            )
+            VALUES
+            ($1,$2,$3,TRUE)
+            RETURNING *
+            `,
+            [name,email,googleId]
+        );
+        user = newUser.rows[0];
+    }
+
+    const accessToken = generateAccessToken(user.id);
+    const refreshToken = generateRefreshToken(user.id);
+    await pool.query(
+        `
+        UPDATE users
+        SET refresh_token = $1
+        WHERE id = $2
+        `,
+        [refreshToken, user.id]
+    );
+    return {
+        user: {
+            id: user.id,
+            name: user.name,
+            email: user.email,
+            isVerified: user.is_verified,
+            twoFactorEnabled: user.two_factor_enabled,
+        },
+        tokens: {
+            accessToken,
+            refreshToken,
+        },
+    };
 
 }

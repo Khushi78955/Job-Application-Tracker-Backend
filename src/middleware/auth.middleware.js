@@ -10,8 +10,15 @@ const protect = async(req, res, next) => {
         }
 
         const token = authHeader.split(" ")[1];
-        const decoded = verifyAccessToken(token);
+
+        let decoded;
+        try {
+            decoded = verifyAccessToken(token);
+        } catch {
+            throw new AppError("Unauthorized", 401);
+        }
         req.user = decoded;
+        
         next();
     } catch(err){
         next(err)

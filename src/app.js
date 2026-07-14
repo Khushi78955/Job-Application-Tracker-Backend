@@ -7,6 +7,7 @@ import morgan from "morgan";
 
 import routes from "./routes/index.js";
 import errorHandler from "./middleware/error.middleware.js";
+import passport from "./config/passport.js";
 
 const app = express();
 
@@ -16,6 +17,7 @@ app.use(cors());
 app.use(helmet());
 app.use(morgan("dev"));
 app.use(cookieParser());
+app.use(passport.initialize());
 
 app.get("/", (req, res) => {
     res.json({
@@ -25,7 +27,6 @@ app.get("/", (req, res) => {
 })
 
 app.use("/api/v1", routes);
-
 
 app.use(errorHandler);
 

@@ -45,8 +45,7 @@ export const refreshToken = async (req, res, next) => {
 
 export const logout = async (req, res, next) => {
     try{
-        const { userId } = req.body;
-        const result = await logoutUser(userId);
+        const result = await logoutUser(req.user.userId);
         res.status(200).json({
             success: true,
             message: result.message,
