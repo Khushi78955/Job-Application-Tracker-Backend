@@ -3,7 +3,10 @@ import AppError from "../errors/AppError.js";
 const validate = (schema, source = "body") => {
   return (req, res, next) => {
     try {
-      req[source] = schema.parse(req[source]);
+      const parsed = schema.parse(req[source]);
+
+      req.validated = parsed;
+
       next();
     } catch (err) {
       next(

@@ -15,7 +15,7 @@ export const create = async (req, res, next) => {
 
 export const getAll = async (req, res, next) => {
     try{
-        const result = await getApplications(req.user.userId, req.query);
+        const result = await getApplications(req.user.userId, req.validated);
         res.status(200).json({
             success: true,
             data: result,
@@ -41,7 +41,7 @@ export const getById = async (req, res, next) => {
 
 export const update = async (req, res, next) => {
     try{
-        const result = await updateApplication(req.user.userId, req.params.id, req.body);
+        const result = await updateApplication(req.user.userId, req.params.id, req.validated);
         res.status(200).json({
             success: true,
             message: "Application updated successfully",
