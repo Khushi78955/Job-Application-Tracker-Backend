@@ -127,7 +127,7 @@ export const enable2FA = async (req, res, next) => {
 
 export const verify2FA = async (req, res, next) => {
     try{
-        const result = await verifyTwoFactor(req.body);
+        const result = await verifyTwoFactor({userId: req.user.userId, token: req.body.token});
         res.status(200).json({
             success: true,
             message: "2FA verification successful",

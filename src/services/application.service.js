@@ -85,27 +85,36 @@ export const getApplicationById = async (userId, applicationId) => {
 
 
 export const updateApplication = async (userId, applicationId, data) => {
-    const {company, role, status, applied_date, follow_up_date, notes} = data;
+    const fields = [];
+    const values = [];
+    let index = 1;
+
+    Object.entries(data).forEach(([key, value]) => {
+        fields.push(`${key} = $${index}`);
+        values.push(value);
+        index++;
+    });
+
+    fields.push(`updated_at = CURRENT_TIMESTAMP`);
+
+    values.push(applicationId);
+    values.push(userId);
+
     const result = await pool.query(
         `
         UPDATE applications
-        SET
-        company = $1,
-        role = $2,
-        status = $3,
-        applied_date = $4,
-        follow_up_date = $5,
-        notes = $6,
-        updated_at = CURRENT_TIMESTAMP
-        WHERE id = $7
-        AND user_id = $8
+        SET ${fields.join(", ")}
+        WHERE id = $${index}
+        AND user_id = $${index + 1}
         RETURNING *
         `,
-        [company, role, status, applied_date, follow_up_date, notes, applicationId, userId]
+        values
     );
+
     if (result.rows.length === 0) {
         throw new AppError("Application not found", 404);
     }
+
     return result.rows[0];
 };
 

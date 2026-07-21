@@ -82,8 +82,6 @@ export const resetPasswordSchema = z.object({
 
 
 export const verifyTwoFactorSchema = z.object({
-    userId: z.coerce.number(),
-    
     token: z
         .string()
         .length(6, "Token must be 6 digits"),

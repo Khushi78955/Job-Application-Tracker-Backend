@@ -10,51 +10,58 @@ import speakeasy from "speakeasy";
 import QRCode from "qrcode";
 
 export const registerUser = async ({name, email, password}) => {
+    try{
+        await pool.query("BEGIN");
+        const existingUser = await pool.query(
+            `
+            SELECT id
+            FROM users
+            WHERE email = $1
+            `,
+            [email]
+        )
 
-    const existingUser = await pool.query(
-        `
-        SELECT id
-        FROM users
-        WHERE email = $1
-        `,
-        [email]
-    )
-
-    if(existingUser.rows.length > 0){
-        throw new AppError("User already exists", 409);
-    }
-
-    const passwordHash = await hashPassword(password);
-    const result = await pool.query(
-        `
-        INSERT INTO users (name, email, password_hash)
-        VALUES ($1, $2, $3)
-        RETURNING id, name, email, is_verified, two_factor_enabled
-        `,
-        [name, email, passwordHash]
-    )
-
-    const user = result.rows[0];
-    const accessToken = generateAccessToken(user.id);
-    const refreshToken = generateRefreshToken(user.id);
-    await pool.query(
-        `
-        UPDATE users
-        SET refresh_token = $1
-        WHERE id = $2
-        `,
-        [refreshToken, user.id]
-    )
-
-    await sendVerificationEmail(user.id);
-
-    return {
-        user,
-        tokens: {
-            accessToken,
-            refreshToken
+        if(existingUser.rows.length > 0){
+            throw new AppError("User already exists", 409);
         }
+
+        const passwordHash = await hashPassword(password);
+        const result = await pool.query(
+            `
+            INSERT INTO users (name, email, password_hash)
+            VALUES ($1, $2, $3)
+            RETURNING id, name, email, is_verified, two_factor_enabled
+            `,
+            [name, email, passwordHash]
+        )
+
+        const user = result.rows[0];
+        const accessToken = generateAccessToken(user.id);
+        const refreshToken = generateRefreshToken(user.id);
+        await pool.query(
+            `
+            UPDATE users
+            SET refresh_token = $1
+            WHERE id = $2
+            `,
+            [refreshToken, user.id]
+        )
+
+        await sendVerificationEmail(user.id);
+        await pool.query("COMMIT");
+
+        return {
+            user,
+            tokens: {
+                accessToken,
+                refreshToken
+            }
+        }
+    } catch (err) {
+        await pool.query("ROLLBACK");
+        throw err;
     }
+    
 }
 
 
@@ -382,6 +389,9 @@ export const googleLogin = async (profile) => {
             );
 
             user = updatedUser.rows[0];
+            if (!user) {
+                throw new AppError("Unable to link Google account", 500);
+            }
         }
     }
     else{
@@ -433,24 +443,29 @@ export const googleLogin = async (profile) => {
 export const enableTwoFactor = async (userId) => {
     const secret = speakeasy.generateSecret({
         name: "Job Application Tracker"
-    })
-    await pool.query(
+    });
+
+    const result = await pool.query(
         `
         UPDATE users
         SET two_factor_secret = $1
         WHERE id = $2
+        RETURNING id
         `,
         [secret.base32, userId]
     );
 
+    if (result.rows.length === 0) {
+        throw new AppError("User not found", 404);
+    }
+
     const qrCode = await QRCode.toDataURL(secret.otpauth_url);
+
     return {
         secret: secret.base32,
         qrCode
-
-    }
-}
-
+    };
+};
 
 
 export const verifyTwoFactor = async ({userId, token}) => {
@@ -467,6 +482,9 @@ export const verifyTwoFactor = async ({userId, token}) => {
         throw new AppError("User not found", 404);
     }
     const secret = result.rows[0].two_factor_secret;
+    if (!secret) {
+        throw new AppError("Two-factor authentication is not enabled", 400);
+    }
     const verified = speakeasy.totp.verify({
         secret,
         encoding: "base32",

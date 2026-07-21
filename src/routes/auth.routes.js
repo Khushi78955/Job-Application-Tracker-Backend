@@ -35,7 +35,7 @@ router.get("/google/callback", passport.authenticate("google", {
 );
 
 router.post("/enable-2fa", protect, enable2FA);
-router.post("/verify-2fa", validate(verifyTwoFactorSchema), verify2FA)
+router.post("/verify-2fa", protect, validate(verifyTwoFactorSchema), verify2FA)
 router.post("/disable-2fa", protect, disable2FA)
 
 
